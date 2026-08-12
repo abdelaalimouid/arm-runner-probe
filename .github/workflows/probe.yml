@@ -1,0 +1,33 @@
+name: arm64-probe
+on: [push, workflow_dispatch]
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Architecture
+        run: uname -m && nproc
+
+      - name: CPU features (the thing we care about)
+        run: lscpu
+
+      - name: Flag check
+        run: |
+          for f in sve sve2 svei8mm svebf16 i8mm bf16 asimddp; do
+            if grep -qw "$f" /proc/cpuinfo; then echo "PRESENT  $f"; else echo "absent   $f"; fi
+          done
+
+      - name: Implementer / part number
+        run: grep -E 'CPU implementer|CPU part|CPU architecture|CPU variant' /proc/cpuinfo | sort -u
+
+      - name: Memory
+        run: free -g
+
+      - name: Energy telemetry available?
+        run: ls /sys/class/powercap/ 2>/dev/null || echo "NO powercap - no energy counters on this runner"
+
+      - name: Timing noise (5x back-to-back fixed workload)
+        run: |
+          for i in 1 2 3 4 5; do
+            /usr/bin/time -f "run$i: %e s" openssl speed -evp aes-128-gcm -seconds 1 2>&1 | tail -1
+          done
